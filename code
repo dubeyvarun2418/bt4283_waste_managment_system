@@ -1,0 +1,174 @@
+# %% [markdown]
+# 
+
+# %% [code]
+import numpy as np
+import pandas as pd 
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import cv2
+
+import warnings
+warnings.filterwarnings('ignore')
+import os
+for dirname, _, _ in os.walk('/kaggle/input'):
+        print(dirname)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:45:37.041857Z","iopub.execute_input":"2023-12-03T08:45:37.042130Z","iopub.status.idle":"2023-12-03T08:45:37.046014Z","shell.execute_reply.started":"2023-12-03T08:45:37.042096Z","shell.execute_reply":"2023-12-03T08:45:37.044913Z"}}
+train_path = "/kaggle/input/waste-classification-data/DATASET/TRAIN/"
+test_path = "/kaggle/input/waste-classification-data/DATASET/TEST/"
+
+# %% [markdown]
+# ## Import Libraries
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:45:37.047791Z","iopub.execute_input":"2023-12-03T08:45:37.048105Z","iopub.status.idle":"2023-12-03T08:45:42.934986Z","shell.execute_reply.started":"2023-12-03T08:45:37.048061Z","shell.execute_reply":"2023-12-03T08:45:42.934176Z"}}
+from keras.models import Sequential 
+from keras.layers import Conv2D, MaxPooling2D, Activation, Dropout, Flatten, Dense, BatchNormalization
+from keras.preprocessing.image import ImageDataGenerator, img_to_array, load_img
+from keras.utils.vis_utils import plot_model
+from glob import glob
+
+# %% [markdown]
+# ## Visualization
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:45:42.936418Z","iopub.execute_input":"2023-12-03T08:45:42.936683Z","iopub.status.idle":"2023-12-03T08:47:32.372046Z","shell.execute_reply.started":"2023-12-03T08:45:42.936658Z","shell.execute_reply":"2023-12-03T08:47:32.371106Z"}}
+x_data = [] 
+y_data = [] 
+
+for category in glob(train_path+'/*'):
+    for file in tqdm(glob(category+'/*')):
+        img_array=cv2.imread(file)
+        img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
+        x_data.append(img_array) 
+        y_data.append(category.split("/")[-1])
+        
+data=pd.DataFrame({'image': x_data,'label': y_data})
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:32.373388Z","iopub.execute_input":"2023-12-03T08:47:32.373705Z","iopub.status.idle":"2023-12-03T08:47:32.380998Z","shell.execute_reply.started":"2023-12-03T08:47:32.373675Z","shell.execute_reply":"2023-12-03T08:47:32.380135Z"}}
+data.shape
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:32.382241Z","iopub.execute_input":"2023-12-03T08:47:32.382604Z","iopub.status.idle":"2023-12-03T08:47:32.393812Z","shell.execute_reply.started":"2023-12-03T08:47:32.382568Z","shell.execute_reply":"2023-12-03T08:47:32.393041Z"}}
+from collections import Counter
+Counter(y_data)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:32.394942Z","iopub.execute_input":"2023-12-03T08:47:32.395246Z","iopub.status.idle":"2023-12-03T08:47:32.541650Z","shell.execute_reply.started":"2023-12-03T08:47:32.395219Z","shell.execute_reply":"2023-12-03T08:47:32.540811Z"}}
+colors = ['#a0d157','#c48bb8']
+plt.pie(data.label.value_counts(),startangle=90,explode=[0.05,0.05],autopct='%0.2f%%',
+        labels=['Organic', 'Recyclable'], colors= colors,radius=2)
+plt.show()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:32.543918Z","iopub.execute_input":"2023-12-03T08:47:32.544213Z","iopub.status.idle":"2023-12-03T08:47:34.763379Z","shell.execute_reply.started":"2023-12-03T08:47:32.544186Z","shell.execute_reply":"2023-12-03T08:47:34.762203Z"}}
+plt.figure(figsize=(20,15))
+for i in range(9):
+    plt.subplot(4,3,(i%12)+1)
+    index=np.random.randint(15000)
+    plt.title('This image is of {0}'.format(data.label[index]),fontdict={'size':20,'weight':'bold'})
+    plt.imshow(data.image[index])
+    plt.tight_layout()
+
+# %% [markdown]
+# * O -> Organic
+# * R -> Recyclable
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:34.765148Z","iopub.execute_input":"2023-12-03T08:47:34.765556Z","iopub.status.idle":"2023-12-03T08:47:34.771272Z","shell.execute_reply.started":"2023-12-03T08:47:34.765509Z","shell.execute_reply":"2023-12-03T08:47:34.770271Z"}}
+className = glob(train_path + '/*' )
+numberOfClass = len(className)
+print("Number Of Class: ",numberOfClass)
+
+# %% [markdown]
+# # Convolutional Neural Network - CNN
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:34.772456Z","iopub.execute_input":"2023-12-03T08:47:34.772732Z","iopub.status.idle":"2023-12-03T08:47:37.915817Z","shell.execute_reply.started":"2023-12-03T08:47:34.772704Z","shell.execute_reply":"2023-12-03T08:47:37.914887Z"}}
+model = Sequential()
+model.add(Conv2D(32,(3,3),input_shape = (224,224,3)))
+model.add(Activation("relu"))
+model.add(MaxPooling2D())
+
+model.add(Conv2D(64,(3,3)))  
+model.add(Activation("relu"))
+model.add(MaxPooling2D())
+
+model.add(Conv2D(128,(3,3)))
+model.add(Activation("relu"))
+model.add(MaxPooling2D())
+
+model.add(Flatten())
+model.add(Dense(256))
+model.add(Activation("relu"))
+model.add(Dropout(0.5))
+model.add(Dense(64))
+model.add(Activation("relu"))
+model.add(Dropout(0.5))
+model.add(Dense(numberOfClass)) # output
+model.add(Activation("sigmoid"))
+
+model.compile(loss = "binary_crossentropy",
+              optimizer = "adam",
+              metrics = ["accuracy"])
+
+batch_size = 256
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:37.916865Z","iopub.execute_input":"2023-12-03T08:47:37.917144Z","iopub.status.idle":"2023-12-03T08:47:38.653455Z","shell.execute_reply.started":"2023-12-03T08:47:37.917115Z","shell.execute_reply":"2023-12-03T08:47:38.652546Z"}}
+plot_model(model)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:38.654897Z","iopub.execute_input":"2023-12-03T08:47:38.655174Z","iopub.status.idle":"2023-12-03T08:47:38.659587Z","shell.execute_reply.started":"2023-12-03T08:47:38.655141Z","shell.execute_reply":"2023-12-03T08:47:38.658765Z"}}
+train_datagen = ImageDataGenerator(rescale= 1./255)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:38.660754Z","iopub.execute_input":"2023-12-03T08:47:38.661049Z","iopub.status.idle":"2023-12-03T08:47:38.671565Z","shell.execute_reply.started":"2023-12-03T08:47:38.661021Z","shell.execute_reply":"2023-12-03T08:47:38.670755Z"}}
+test_datagen = ImageDataGenerator(rescale= 1./255)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:38.672543Z","iopub.execute_input":"2023-12-03T08:47:38.672790Z","iopub.status.idle":"2023-12-03T08:47:44.686497Z","shell.execute_reply.started":"2023-12-03T08:47:38.672766Z","shell.execute_reply":"2023-12-03T08:47:44.685629Z"}}
+train_generator = train_datagen.flow_from_directory(
+        train_path, 
+        target_size= (224,224),
+        batch_size = batch_size,
+        color_mode= "rgb",
+        class_mode= "categorical")
+
+test_generator = test_datagen.flow_from_directory(
+        test_path, 
+        target_size= (224,224),
+        batch_size = batch_size,
+        color_mode= "rgb",
+        class_mode= "categorical")
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T08:47:44.687617Z","iopub.execute_input":"2023-12-03T08:47:44.687902Z","iopub.status.idle":"2023-12-03T09:04:03.058986Z","shell.execute_reply.started":"2023-12-03T08:47:44.687872Z","shell.execute_reply":"2023-12-03T09:04:03.057811Z"}}
+hist = model.fit_generator(
+        generator = train_generator,
+        epochs=10,
+        validation_data = test_generator)
+
+# %% 
+plt.figure(figsize=[10,6])
+plt.plot(hist.history["accuracy"], label = "Train acc")
+plt.plot(hist.history["val_accuracy"], label = "Validation acc")
+plt.legend()
+plt.show()
+
+# 
+plt.figure(figsize=(10,6))
+plt.plot(hist.history['loss'], label = "Train loss")
+plt.plot(hist.history['val_loss'], label = "Validation loss")
+plt.legend()
+plt.show()
+
+# %% [markdown]
+# ## Model Prediction
+
+def predict_func(img): 
+    plt.figure(figsize=(6,4))
+    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    plt.tight_layout()
+    img = cv2.resize(img, (224, 224))
+    img = np.reshape(img, [-1, 224, 224,3])
+    result = np.argmax(model.predict(img))
+    if result == 0: print("\033[94m"+"This image -> Recyclable"+"\033[0m")
+    elif result ==1: print("\033[94m"+"This image -> Organic"+"\033[0m")
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T09:04:03.411611Z","iopub.execute_input":"2023-12-03T09:04:03.411959Z","iopub.status.idle":"2023-12-03T09:04:03.923944Z","shell.execute_reply.started":"2023-12-03T09:04:03.411923Z","shell.execute_reply":"2023-12-03T09:04:03.923134Z"}}
+test_img = cv2.imread("/kaggle/input/waste-classification-data/DATASET/TEST/O/O_12573.jpg")
+predict_func(test_img)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-12-03T09:04:03.924983Z","iopub.execute_input":"2023-12-03T09:04:03.925260Z","iopub.status.idle":"2023-12-03T09:04:04.209194Z","shell.execute_reply.started":"2023-12-03T09:04:03.925232Z","shell.execute_reply":"2023-12-03T09:04:04.208389Z"}}
+test_img = cv2.imread("/kaggle/input/waste-classification-data/DATASET/TEST/R/R_10753.jpg")
+predict_func(test_img)
